@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+ <!-- Console launch prefix -->
+  <arg name="launch_prefix" default="" />
+  
+  <node pkg="shunyu" type="tof_dev_sdk_demo-package-api" name="shunyu" output="screen" cwd="node" respawn="true">
+    <param name="normalize_pub_image" value="false" />
+  </node>
+
+</launch>
