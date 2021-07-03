@@ -59,6 +59,9 @@ ros::Publisher raw_publisher;
 std::string frame_id = std::string("shunyu");
 
 bool normalize_pub_image = false;
+bool ae_enable = true;
+bool hd_enable = true;
+bool filter_enable = true;
 
 
 
@@ -1691,29 +1694,35 @@ static void GetOrSetSomeParam(HTOFD hTofD, TofDeviceInfo* pCaps, const TOF_MODE 
 	TOFRET retVal = TOFRET_ERROR_OTHER;
 
 #if 1
-	if (pCaps->supportedTofExpMode & EXP_MODE_AUTO)
-	{
-		if (TOFRET_SUCCESS != (retVal = TOFD_SetTofAE(hTofD, true)))//按需，或者联系沟通后确认
+	if(ae_enable){
+		if (pCaps->supportedTofExpMode & EXP_MODE_AUTO)
 		{
-			printf("TOFD_SetTofAE failed, retVal=0x%08x.\n", retVal);
+			if (TOFRET_SUCCESS != (retVal = TOFD_SetTofAE(hTofD, true)))//按需，或者联系沟通后确认
+			{
+				printf("TOFD_SetTofAE failed, retVal=0x%08x.\n", retVal);
+			}
 		}
 	}
 
-	if (TOFRET_SUCCESS != (retVal = TOFD_SetTofHDRZ(hTofD, false)))//按需，或者联系沟通后确认
-	{
-		printf("TOFD_SetTofHDRZ failed, retVal=0x%08x.\n", retVal);
+	if(hd_enable){
+		if (TOFRET_SUCCESS != (retVal = TOFD_SetTofHDRZ(hTofD, false)))//按需，或者联系沟通后确认
+		{
+			printf("TOFD_SetTofHDRZ failed, retVal=0x%08x.\n", retVal);
+		}
 	}
 #endif
 
 #if 1 //滤波，按需，或者联系沟通后确认
-	for (UINT32 i = 0; i < 32; i++)
-	{
-		UINT32 type = (1 << i);
-		if (0 != (pCaps->supportedTOFFilter & type))
+	if(filter_enable){
+		for (UINT32 i = 0; i < 32; i++)
 		{
-			if (TOFRET_SUCCESS != (retVal = TOFD_SetTofFilter(hTofD, (const TOF_FILTER)type, true)))
+			UINT32 type = (1 << i);
+			if (0 != (pCaps->supportedTOFFilter & type))
 			{
-				printf("TOFD_SetTofFilter failed, retVal=0x%08x.\n", retVal);
+				if (TOFRET_SUCCESS != (retVal = TOFD_SetTofFilter(hTofD, (const TOF_FILTER)type, true)))
+				{
+					printf("TOFD_SetTofFilter failed, retVal=0x%08x.\n", retVal);
+				}
 			}
 		}
 	}
@@ -2009,6 +2018,9 @@ int main(int argc, char** argv)
     ros::NodeHandle camera_nh("/shunyu/");
 
 	priv_nh.param("normalize_pub_image", normalize_pub_image, false);
+	priv_nh.param("ae_enable", ae_enable, true);
+	priv_nh.param("hd_enable", hd_enable, true);
+	priv_nh.param("filter_enable", filter_enable, true);
 
 	stringstream ss;
 	ss.str("");

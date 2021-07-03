@@ -5,6 +5,9 @@
   
   <node pkg="shunyu" type="tof_dev_sdk_demo-package-api" name="shunyu" output="screen" cwd="node" respawn="true">
     <param name="normalize_pub_image" value="false" />
+    <param name="filter_enable" value="true" />
+    <param name="ae_enable" value="true" />
+    <param name="hd_enable" value="true" />
   </node>
 
 </launch>
