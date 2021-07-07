@@ -55,6 +55,7 @@ using namespace std;
 
 ros::Publisher          all_pointcloud_publisher_; 
 ros::Publisher gray_publisher;
+ros::Publisher depth_publisher;
 ros::Publisher raw_publisher;
 std::string frame_id = std::string("shunyu");
 
@@ -62,6 +63,9 @@ bool normalize_pub_image = false;
 bool ae_enable = true;
 bool hd_enable = true;
 bool filter_enable = true;
+
+double depth_range_min = 0.001;
+double depth_range_max = 4.0;
 
 
 
@@ -1251,11 +1255,13 @@ static bool VisualizePoint(PointData *pPointData, const UINT32 width, const UINT
 	{
 		return false;
 	}
+	cv::Mat depth_image = cv::Mat::zeros(cv::Size(width, height), CV_16UC1);
 
 
 	const UINT32 nCnt = width *height;
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pclpointcloud(new pcl::PointCloud<pcl::PointXYZ>);
+
 
 	for (UINT32 nPos = 0; nPos < nCnt; nPos++)
 	{
@@ -1265,9 +1271,37 @@ static bool VisualizePoint(PointData *pPointData, const UINT32 width, const UINT
 		pt.y = pPointData[nPos].y;
 		pt.z = pPointData[nPos].z;
 
-		pclpointcloud->points.push_back(pt);
+		
+
+		if( pt.z > depth_range_min && pt.z < depth_range_max){
+			unsigned short this_depth = pt.z * 1000;
+
+			if(this_depth>65535) this_depth = 65535;
+			if(this_depth<0) this_depth = 0;
+
+			int v = nPos / width;
+			int u = nPos % width;
+			depth_image.at<unsigned short>(v, u) = this_depth;
+
+			pclpointcloud->points.push_back(pt);
+
+		}
+
+
+		
 
 	}
+
+	sensor_msgs::ImagePtr depth_msg = cv_bridge::CvImage(std_msgs::Header(),
+                                                                            sensor_msgs::image_encodings::TYPE_16UC1,
+                                                                            depth_image).toImageMsg();
+	depth_msg->header.frame_id = frame_id;
+	depth_msg->header.stamp = ros::Time::now();
+	if (depth_publisher.getNumSubscribers() > 0) {
+		// depth_publisher.publish(*depth_msg, *camera_info_); 
+		depth_publisher.publish(depth_msg);
+	}
+
 
 	
     pclpointcloud->header.frame_id = frame_id;
@@ -2029,6 +2063,9 @@ int main(int argc, char** argv)
 	ss.str("");
     ss << "gray_image";
 	gray_publisher = camera_nh.advertise<sensor_msgs::Image>(ss.str(), 1);
+	ss.str("");
+    ss << "depth_image";
+	depth_publisher = camera_nh.advertise<sensor_msgs::Image>(ss.str(), 1);
 	ss.str("");
     ss << "raw_image";
 	raw_publisher = camera_nh.advertise<sensor_msgs::Image>(ss.str(), 1);
