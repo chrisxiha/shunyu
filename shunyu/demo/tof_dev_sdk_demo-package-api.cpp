@@ -53,11 +53,10 @@ using namespace std;
 #include <pcl/segmentation/sac_segmentation.h>
 #include <sensor_msgs/PointCloud2.h>
 
-ros::Publisher          all_pointcloud_publisher_; 
+ros::Publisher all_pointcloud_publisher_; 
 ros::Publisher gray_publisher;
 ros::Publisher depth_publisher;
 ros::Publisher raw_publisher;
-std::string frame_id = std::string("shunyu");
 
 bool normalize_pub_image = false;
 bool ae_enable = true;
@@ -66,6 +65,12 @@ bool filter_enable = true;
 
 double depth_range_min = 0.001;
 double depth_range_max = 4.0;
+float bad_point = std::numeric_limits<float>::quiet_NaN();
+
+UINT32 tof_seq = 0;
+ros::Time tof_timestamp;
+std::string tof_frame_id = std::string("shunyu");
+
 
 
 
@@ -1267,27 +1272,34 @@ static bool VisualizePoint(PointData *pPointData, const UINT32 width, const UINT
 	{
 		// fprintf(fp, "%0.6f;%0.6f;%0.6f\n", pPointData[nPos].x, pPointData[nPos].y, pPointData[nPos].z);
 		pcl::PointXYZ pt;
-		pt.x = pPointData[nPos].x;
-		pt.y = pPointData[nPos].y;
-		pt.z = pPointData[nPos].z;
+		
 
 		
 
-		if( pt.z > depth_range_min && pt.z < depth_range_max){
-			unsigned short this_depth = pt.z * 1000;
+		if( pPointData[nPos].z > depth_range_min && pPointData[nPos].z < depth_range_max){
 
+			pt.x = pPointData[nPos].x;
+			pt.y = pPointData[nPos].y;
+			pt.z = pPointData[nPos].z;
+
+			unsigned short this_depth = pt.z * 1000;
 			if(this_depth>65535) this_depth = 65535;
 			if(this_depth<0) this_depth = 0;
-
 			int v = nPos / width;
 			int u = nPos % width;
 			depth_image.at<unsigned short>(v, u) = this_depth;
 
-			pclpointcloud->points.push_back(pt);
+			
+
+		}else{
+
+			pt.x = bad_point;
+			pt.y = bad_point;
+			pt.z = bad_point;
 
 		}
 
-
+		pclpointcloud->points.push_back(pt);
 		
 
 	}
@@ -1295,21 +1307,21 @@ static bool VisualizePoint(PointData *pPointData, const UINT32 width, const UINT
 	sensor_msgs::ImagePtr depth_msg = cv_bridge::CvImage(std_msgs::Header(),
                                                                             sensor_msgs::image_encodings::TYPE_16UC1,
                                                                             depth_image).toImageMsg();
-	depth_msg->header.frame_id = frame_id;
-	depth_msg->header.stamp = ros::Time::now();
+	depth_msg->header.seq = tof_seq;
+	depth_msg->header.frame_id = tof_frame_id;
+	depth_msg->header.stamp = tof_timestamp;
 	if (depth_publisher.getNumSubscribers() > 0) {
 		// depth_publisher.publish(*depth_msg, *camera_info_); 
 		depth_publisher.publish(depth_msg);
 	}
 
 
-	
-    pclpointcloud->header.frame_id = frame_id;
 
     sensor_msgs::PointCloud2 msg_pointcloud_all;
     pcl::toROSMsg(*pclpointcloud, msg_pointcloud_all);
-    msg_pointcloud_all.header.stamp = ros::Time::now();
-    // msg_pointcloud_all.header.seq = seq;
+    msg_pointcloud_all.header.stamp = tof_timestamp;
+    msg_pointcloud_all.header.seq = tof_seq;
+	msg_pointcloud_all.header.frame_id = tof_frame_id;
     all_pointcloud_publisher_.publish(msg_pointcloud_all);
 
 	return true;
@@ -1355,8 +1367,9 @@ static bool VisualizePoint(PointData *pPointData, const UINT32 width, const UINT
                                                                             sensor_msgs::image_encodings::TYPE_16UC1,
                                                                             gray_image).toImageMsg();
         
-        gray_msg->header.frame_id = frame_id;
-        gray_msg->header.stamp = ros::Time::now();
+    gray_msg->header.seq = tof_seq;
+	gray_msg->header.frame_id = tof_frame_id;
+	gray_msg->header.stamp = tof_timestamp;
         // depth_msg->width = depth_img_.cols;
         // depth_msg->height = depth_img_.rows;
         // depth_msg->is_bigendian = false;
@@ -1412,8 +1425,9 @@ static bool VisualizePoint(PointData *pPointData, const UINT32 width, const UINT
                                                                             sensor_msgs::image_encodings::TYPE_16UC1,
                                                                             raw_image).toImageMsg();
         
-        raw_msg->header.frame_id = frame_id;
-        raw_msg->header.stamp = ros::Time::now();
+    raw_msg->header.seq = tof_seq;
+	raw_msg->header.frame_id = tof_frame_id;
+	raw_msg->header.stamp = tof_timestamp;
         // depth_msg->width = depth_img_.cols;
         // depth_msg->height = depth_img_.rows;
         // depth_msg->is_bigendian = false;
@@ -1430,6 +1444,11 @@ static bool VisualizePoint(PointData *pPointData, const UINT32 width, const UINT
 
 static void Visualize( const unsigned int nCaptureIndex, TofFrameData *tofFrameData)
 {
+	// printf( "tt timeStamp:%lld", tofFrameData->timeStamp);
+
+	tof_seq = nCaptureIndex;
+	tof_timestamp = ros::Time::now();
+
 	if (NULL != tofFrameData->pPointData)
 	{
 		VisualizePoint(tofFrameData->pPointData, tofFrameData->frameWidth, tofFrameData->frameHeight);
@@ -1437,15 +1456,13 @@ static void Visualize( const unsigned int nCaptureIndex, TofFrameData *tofFrameD
 	
 	if (NULL != tofFrameData->pGrayData)
 	{
-
 		VisualizeGray((float*)tofFrameData->pGrayData, tofFrameData->frameWidth, tofFrameData->frameHeight);
 	}
 
-	if ((NULL != tofFrameData->pRawData) && (0 < tofFrameData->nRawDataLen))
-	{
-
-		VisualizeRaw((float*)tofFrameData->pRawData, tofFrameData->frameWidth, tofFrameData->frameHeight);
-	}
+	// if ((NULL != tofFrameData->pRawData) && (0 < tofFrameData->nRawDataLen))
+	// {
+	// 	VisualizeRaw((float*)tofFrameData->pRawData, tofFrameData->frameWidth, tofFrameData->frameHeight);
+	// }
 
 }
 
@@ -1557,10 +1574,10 @@ static void fnTofStream(TofFrameData *tofFrameData, void* pUserData)
 
 	return;
 	//
-	const float fDepthZAvg = CalCenterPointDataZAvg(tofFrameData->pPointData, tofFrameData->frameWidth, tofFrameData->frameHeight);
-	printf("[%d], one TOF frame, time=%llu, center depthZ = %0.3f m.\n", pDevData->m_nTofFrameRecvTotalCnt, Utils_GetTickCount(), fDepthZAvg);
+	// const float fDepthZAvg = CalCenterPointDataZAvg(tofFrameData->pPointData, tofFrameData->frameWidth, tofFrameData->frameHeight);
+	// printf("[%d], one TOF frame, time=%llu, center depthZ = %0.3f m.\n", pDevData->m_nTofFrameRecvTotalCnt, Utils_GetTickCount(), fDepthZAvg);
 
-	CaptureTofFrame(std::string("./Capture"), pDevData->m_nTofFrameRecvTotalCnt, tofFrameData);
+	// CaptureTofFrame(std::string("./Capture"), pDevData->m_nTofFrameRecvTotalCnt, tofFrameData);
 
 }
 
@@ -1989,6 +2006,7 @@ static void ThreadTofStream(const UINT32 index, const UINT64 nDuration)
 		{
 			//todo
 			nLoop++;
+
 	        const float fDepthZAvg = CalCenterPointDataZAvg(struData.pPointData, struData.frameWidth, struData.frameHeight);
 			printf("[%d], one TOF frame, %d x %d time=%llu, center depthZ = %0.3f m.\n", nLoop, struData.frameWidth, struData.frameHeight, Utils_GetTickCount(), fDepthZAvg);
 
