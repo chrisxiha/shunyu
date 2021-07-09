@@ -30,11 +30,12 @@ find_package(catkin REQUIRED
 find_package(PCL REQUIRED)
 
 set(OpenCV_INCLUDE_DIRS
-/opt/ros/kinetic/include/opencv-3.3.1-dev
+    /usr/local/include
+	/usr/local/include/opencv2
 	)
 
 set(OpenCV_LIB_DIR
-/opt/ros/kinetic/lib/x86_64-linux-gnu
+    /usr/local/lib
 	)
 
 set(OpenCV_LIBS
@@ -44,7 +45,7 @@ set(OpenCV_LIBS
 	)
 
 
-find_package( OpenCV 3 REQUIRED )
+
 
 include_directories(include 
                     #$(OPENCV_INCLUDE_DIR)
@@ -62,14 +63,14 @@ set(samples
 
 foreach(sample ${samples})
   add_executable(${sample} ${CMAKE_SOURCE_DIR}/shunyu/demo/${sample}.cpp)
-  target_link_directories(${sample} PUBLIC ${CMAKE_SOURCE_DIR}/shunyu/libs ${OpenCV_LIB_DIR} )
+  link_directories(${sample} PUBLIC ${CMAKE_SOURCE_DIR}/shunyu/libs ${OpenCV_LIB_DIR} )
   add_definitions(-DLINUX)
   target_link_libraries(${sample}
       pthread
       tof_dev_sdk
       ${catkin_LIBRARIES}
       ${PCL_LIBRARIES}
-      ${OpenCV_LIBS}
+      
     )
 
   set_target_properties(${sample} PROPERTIES TIMEOUT 10)
