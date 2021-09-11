@@ -1,0 +1,6 @@
+#!name=DoH
+#!desc=Enable DNS over HTTPS (DoH) 
+
+[General]
+doh-server = https://dns.nextdns.io/c756d8/mac
+doh-follow-outbound-mode = true
