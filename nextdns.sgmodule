@@ -2,4 +2,4 @@
 #!desc=Enable DNS over HTTPS (DoH) 
 
 [General]
-doh-server = https://cool.jianweiwang.workers.dev/https://dns.nextdns.io/c756d8/mac
+doh-server = https://jianwei.uk/https/dns.nextdns.io/c756d8/mac
